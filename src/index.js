@@ -3,6 +3,7 @@ import fragmentShaderSource from './shaders/fragment.glsl';
 import { createFramebuffer } from './utils';
 import {
     generateTriangles,
+    generateOffsetArray,
     createBarycentricCoordinates,
     createMappedtextureCoordinates } from './constructors'
 
@@ -15,9 +16,9 @@ gl.enable(gl.BLEND);
 gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
 // triangles initialization
-const objectCount = 256
-const timeMultiplier = 0.01
+const objectCount = 4096
 const triangleVertices          = generateTriangles(objectCount);
+const offsetArray               = generateOffsetArray(objectCount)
 const barycentricCoordinates    = createBarycentricCoordinates(objectCount)
 const textureCoordinates        = createMappedtextureCoordinates(objectCount)
 
@@ -72,11 +73,22 @@ const programInfo = {
 };
 
 function drawScene(gl, programInfo) {
-    
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);  // Clear to black
+
+    // Swap the framebuffers
+    let temp = fbA
+    fbA = fbB
+    fbB = temp
+
+    // // Render final output to screen
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.uniform1i(shaderProgram.u_previousFrame, fbA.texture);
+
+    gl.clearColor(0.0, 0.0, 0.0, 0.0);  // Clear to black
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(programInfo.program);
 
+    // Bind and set up the texture coordinate buffer
+    // ---------------------------------------------
     const texcoordBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
@@ -93,6 +105,7 @@ function drawScene(gl, programInfo) {
 
 
     // Bind and set up the position buffer
+    // ---------------------------------------------
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangleVertices), gl.STATIC_DRAW);
@@ -106,7 +119,9 @@ function drawScene(gl, programInfo) {
     );
     gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
 
+
     // Bind and set up the barycentric buffer
+    // ---------------------------------------------
     const barycentricBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, barycentricBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(barycentricCoordinates), gl.STATIC_DRAW);
@@ -120,6 +135,15 @@ function drawScene(gl, programInfo) {
         0
     );
     gl.enableVertexAttribArray(barycentricLocation);
+
+    // Bind and set up the index buffer
+    // ---------------------------------------------
+    const offsetBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, offsetBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(offsetArray), gl.STATIC_DRAW);
+    const offsetLocation = gl.getAttribLocation(shaderProgram, 'aOffset');
+    gl.vertexAttribPointer(offsetLocation, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(offsetLocation);
 
     // Draw the triangles
     const vertexCount = triangleVertices.length / 2; // Assuming 2 components per vertex position
@@ -141,9 +165,11 @@ const milliLocation      = gl.getUniformLocation(shaderProgram, 'u_millisecond')
 let fbA = createFramebuffer(gl).framebuffer;
 let fbB = createFramebuffer(gl).framebuffer;
 
+// Create framebuffer and texture
+let fbo = createFramebuffer(gl);
+let sampleTexture = fbo.texture;
+
 function render(time) {
-    // Convert time to seconds
-    time *= timeMultiplier; // convert time to seconds
 
     var now    = new Date();
 
@@ -164,18 +190,9 @@ function render(time) {
     gl.uniform1f(secondLocation, seconds);
     gl.uniform1f(milliLocation, milliseconds);
 
-    // Swap the framebuffers
-    let temp = fbA
-    fbA = fbB
-    fbB = temp
 
-    // // Render final output to screen
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.uniform1i(shaderProgram.u_previousFrame, fbA.texture);
     drawScene(gl, programInfo);
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fbA);
-    gl.uniform1i(shaderProgram.u_previousFrame, fbB.texture);
 
 
     // Call render again to animate
@@ -200,7 +217,7 @@ image.onload = function() {
     requestAnimationFrame(render);
     // You might want to call your render function here
 };
-image.src = 'public/assets/pattern.jpg'; // Set the path to your image
+image.src = 'public/assets/flowers.jpg'; // Set the path to your image
 
 
 
