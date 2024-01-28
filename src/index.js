@@ -1,52 +1,30 @@
 import vertexShaderSource from './shaders/vertex.glsl';
 import fragmentShaderSource from './shaders/fragment.glsl';
+import { createFramebuffer } from './utils';
+import {
+    generateTriangles,
+    createBarycentricCoordinates,
+    createMappedtextureCoordinates } from './constructors'
 
 // Get the canvas element and its WebGL context
 const canvas = document.getElementById('glCanvas');
-const gl = canvas.getContext('webgl');
+const gl     = canvas.getContext('webgl');
 
-function createRandomTriangles(numTriangles) {
-    const vertices = [];
-    for (let i = 0; i < numTriangles; i++) {
+// parameters
+gl.enable(gl.BLEND);
+gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-        var x = i / 200 - 1
-        var delta = 1 / 200
+// triangles initialization
+const objectCount = 256
+const timeMultiplier = 0.01
+const triangleVertices          = generateTriangles(objectCount);
+const barycentricCoordinates    = createBarycentricCoordinates(objectCount)
+const textureCoordinates        = createMappedtextureCoordinates(objectCount)
 
-        vertices.push(x)
-        vertices.push(x)
-
-        vertices.push(x + delta * Math.random())
-        vertices.push(x * Math.random())
-        
-        vertices.push(x + delta * Math.random())
-        vertices.push(x + delta * Math.random())   
-
-    }
-    return vertices;
-}
-
-function createBarycentricCoordinates(numTriangles) {
-
-    const barycentrics = []
-
-    for (let i = 0; i < numTriangles; i++) {
-        // Generate random vertices for each triangle
-        barycentrics.push(...[1.0, 0.0, 0.0])
-        barycentrics.push(...[0.0, 1.0, 0.0])
-        barycentrics.push(...[0.0, 0.0, 1.0])
-
-    }
-
-    return barycentrics
-}
-
-const numTriangles = 200
-const triangleVertices = createRandomTriangles(numTriangles);
-const barycentricCoordinates = createBarycentricCoordinates(numTriangles)
-console.log(barycentricCoordinates)
+var texture
 // Stop if WebGL is not supported
 if (!gl) {
-    alert('Unable to initialize WebGL. Your browser may not support it.');
+    alert('Sorry shader cant run here, you dont have webgl :(');
 }
 
 const vsSource = vertexShaderSource;
@@ -94,9 +72,25 @@ const programInfo = {
 };
 
 function drawScene(gl, programInfo) {
+    
     gl.clearColor(0.0, 0.0, 0.0, 1.0);  // Clear to black
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(programInfo.program);
+
+    const texcoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
+
+    // Bind the texture coordinate buffer
+    gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+    gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(texcoordLocation);
+
+    // Set the texture
+    gl.activeTexture(gl.TEXTURE0); // Use texture unit 0
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.uniform1i(uTextureLocation, 0); // Tell the shader we bound the texture to texture unit 0
+
 
     // Bind and set up the position buffer
     const positionBuffer = gl.createBuffer();
@@ -130,22 +124,83 @@ function drawScene(gl, programInfo) {
     // Draw the triangles
     const vertexCount = triangleVertices.length / 2; // Assuming 2 components per vertex position
     gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+
 }
 
-const u_timeLocation = gl.getUniformLocation(shaderProgram, 'u_time');
+const texcoordLocation  = gl.getAttribLocation(shaderProgram, "aTexcoord");
+const uTextureLocation  = gl.getUniformLocation(shaderProgram, "uTexture");
+
+const yearLocation      = gl.getUniformLocation(shaderProgram, 'u_year');
+const monthLocation     = gl.getUniformLocation(shaderProgram, 'u_month');
+const dayLocation       = gl.getUniformLocation(shaderProgram, 'u_day');
+const hourLocation      = gl.getUniformLocation(shaderProgram, 'u_hour');
+const minuteLocation    = gl.getUniformLocation(shaderProgram, 'u_minute');
+const secondLocation    = gl.getUniformLocation(shaderProgram, 'u_second');
+const milliLocation      = gl.getUniformLocation(shaderProgram, 'u_millisecond');
+
+let fbA = createFramebuffer(gl).framebuffer;
+let fbB = createFramebuffer(gl).framebuffer;
 
 function render(time) {
     // Convert time to seconds
-    time *= 0.005; // convert time to seconds
-    // Set the u_time uniform
-    gl.uniform1f(u_timeLocation, time);
+    time *= timeMultiplier; // convert time to seconds
 
+    var now    = new Date();
+
+    var year = now.getFullYear()
+    var month = now.getMonth()
+    var day = now.getDay()
+    var hours = now.getHours()
+    var minutes = now.getMinutes()
+    var seconds = now.getSeconds()
+    var milliseconds = now.getMilliseconds()
+
+    // Set the u_time uniform
+    gl.uniform1f(yearLocation, year);
+    gl.uniform1f(monthLocation, month);
+    gl.uniform1f(dayLocation, day);
+    gl.uniform1f(hourLocation, hours);
+    gl.uniform1f(minuteLocation, minutes);
+    gl.uniform1f(secondLocation, seconds);
+    gl.uniform1f(milliLocation, milliseconds);
+
+    // Swap the framebuffers
+    let temp = fbA
+    fbA = fbB
+    fbB = temp
+
+    // // Render final output to screen
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.uniform1i(shaderProgram.u_previousFrame, fbA.texture);
     drawScene(gl, programInfo);
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbA);
+    gl.uniform1i(shaderProgram.u_previousFrame, fbB.texture);
+
 
     // Call render again to animate
     requestAnimationFrame(render);
 }
 
-// Start the animation loop
-requestAnimationFrame(render);
+var image = new Image();
+image.onload = function() {
+
+    texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    // Set the texture parameters
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+
+    // Upload the image into the texture
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+
+    // Start the animation loop
+    requestAnimationFrame(render);
+    // You might want to call your render function here
+};
+image.src = 'public/assets/pattern.jpg'; // Set the path to your image
+
+
 
