@@ -65,10 +65,7 @@ void main() {
     // TODO: vary the alignment of the waves based on uniform
     sinTime = sinTime + sin(u_time * 1.5) + sin(u_time * 0.7 + 5.0);
     cosTime = cosTime + cos(u_time * 0.5 + 5.0) + cos(u_time * 1.0 + 15.0);
-
-    // sinTime = sinTime / 3.0;
-    // cosTime = cosTime / 3.0;
-
+    
     float distToCenter = dot(aVertexPosition.xy, aOffset.xy) + 0.2;
 
     vec2 spin = vec2(sinTime * distToCenter, cosTime * distToCenter);
@@ -80,14 +77,9 @@ void main() {
     float varXoffset = sin(u_time + spin.x * 15.0 + 25.0 + stretchedOffset.x);
     float varYoffset = cos(u_time + spin.y * 15.0 + stretchedOffset.y);
     
-    // varXoffset = (varXoffset + sin(aVertexPosition.x)) * 0.5;
-    // varYoffset = (varYoffset + cos(aVertexPosition.y)) * 0.5;
-
-
-    
-    float posX = varXoffset * (vecX * vecY + (offsetDivisorY * spin.y)) / 2.0;
-    float posY = varYoffset * (vecY * vecX + (offsetDivisorX * spin.x)) / 2.0;
+    float posX  = varXoffset * (vecX * vecY + (offsetDivisorY * spin.y)) / 2.0;
+    float posY  = varYoffset * (vecY * vecX + (offsetDivisorX * spin.x)) / 2.0;
 
     gl_Position = vec4(posX, posY, aVertexPosition.z, 1.0);
-    // gl_Position = vec4(aVertexPosition.x, aVertexPosition.y, aVertexPosition.z, 1.0);
+
 }

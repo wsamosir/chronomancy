@@ -12,3 +12,4 @@ npm run watch
 ## TODO:
 - add easing uniform that varies throughout different time groups of the day
 - add another context that acts as the texture generator
+- automate / standardize the placement of time uniform in all the programs

@@ -1,91 +1,107 @@
-import vertexShaderSource from './shaders/vertex.glsl';
-import fragmentShaderSource from './shaders/fragment.glsl';
-import { createFramebuffer } from './utils';
+import generatorShaderSource from './shaders/generatorVert.glsl';
+import generatorFragmentSource from './shaders/generatorFrag.glsl';
+import blurShaderSource from './shaders/blurVert.glsl';
+import blurFragmentSource from './shaders/blurFrag.glsl';
+
+import { initShaderProgram } from './utils';
+
 import {
     generateTriangles,
     generateOffsetArray,
-    createBarycentricCoordinates,
-    createMappedtextureCoordinates } from './constructors'
+    generateBarycentricCoordinates,
+    generateMappedTextureCoordinates, 
+    generateQuadVertices} from './generators'
 
 // Get the canvas element and its WebGL context
 const canvas = document.getElementById('glCanvas');
 const gl     = canvas.getContext('webgl');
+// Stop if WebGL is not supported
+if (!gl) { alert('Sorry shader cant run here, you dont have webgl :('); }
 
 // parameters
 gl.enable(gl.BLEND);
 gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
 // triangles initialization
-const objectCount = 4096
-const triangleVertices          = generateTriangles(objectCount);
+const objectCount               = 512
+const triangleVertices          = generateTriangles(objectCount, "grid");
 const offsetArray               = generateOffsetArray(objectCount)
-const barycentricCoordinates    = createBarycentricCoordinates(objectCount)
-const textureCoordinates        = createMappedtextureCoordinates(objectCount)
+const barycentricCoordinates    = generateBarycentricCoordinates(objectCount)
+const textureCoordinates        = generateMappedTextureCoordinates(objectCount)
 
-var texture
-// Stop if WebGL is not supported
-if (!gl) {
-    alert('Sorry shader cant run here, you dont have webgl :(');
-}
+// this is for the blurring
+const quadVertices              = generateQuadVertices();
 
-const vsSource = vertexShaderSource;
-const fsSource = fragmentShaderSource;
+// instantiate both programs
+const generatorProgram = initShaderProgram(gl, generatorShaderSource, generatorFragmentSource);
+const blurProgram = initShaderProgram(gl, blurShaderSource, blurFragmentSource);
 
-// Initialize a shader program
-function initShaderProgram(gl, vsSource, fsSource) {
-    const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
-    const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
-
-    const shaderProgram = gl.createProgram();
-    gl.attachShader(shaderProgram, vertexShader);
-    gl.attachShader(shaderProgram, fragmentShader);
-    gl.linkProgram(shaderProgram);
-
-    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-        alert('Unable to initialize the shader program: ' + gl.getProgramInfoLog(shaderProgram));
-        return null;
-    }
-
-    return shaderProgram;
-}
-
-// Creates a shader
-function loadShader(gl, type, source) {
-    const shader = gl.createShader(type);
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        alert('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader));
-        gl.deleteShader(shader);
-        return null;
-    }
-
-    return shader;
-}
-
-const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
 const programInfo = {
-    program: shaderProgram,
+    program : generatorProgram,
+    blur    : blurProgram,
     attribLocations: {
-        vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+        vertexPosition: gl.getAttribLocation(generatorProgram, 'aVertexPosition'),
     },
 };
 
-function drawScene(gl, programInfo) {
+// get all the uniform location
+const positionLocation  = gl.getAttribLocation(generatorProgram, "aVertexPosition");
+const texcoordLocation  = gl.getAttribLocation(generatorProgram, "aTexcoord");
+const uTextureLocation  = gl.getUniformLocation(generatorProgram, "uTexture");
 
-    // Swap the framebuffers
-    let temp = fbA
-    fbA = fbB
-    fbB = temp
+const yearLocation      = gl.getUniformLocation(generatorProgram, 'u_year');
+const monthLocation     = gl.getUniformLocation(generatorProgram, 'u_month');
+const dayLocation       = gl.getUniformLocation(generatorProgram, 'u_day');
+const hourLocation      = gl.getUniformLocation(generatorProgram, 'u_hour');
+const minuteLocation    = gl.getUniformLocation(generatorProgram, 'u_minute');
+const secondLocation    = gl.getUniformLocation(generatorProgram, 'u_second');
+const milliLocation     = gl.getUniformLocation(generatorProgram, 'u_millisecond');
 
-    // // Render final output to screen
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.uniform1i(shaderProgram.u_previousFrame, fbA.texture);
+const uBlurTextureLocation = gl.getUniformLocation(blurProgram, "uTexture");
+const uResolutionLocation = gl.getUniformLocation(blurProgram, "uResolution");
+const uMouseLocation = gl.getUniformLocation(blurProgram, "uMouse");
+const aPositionLocation = gl.getAttribLocation(blurProgram, 'aPosition');
+const aTexcoordLocation = gl.getAttribLocation(blurProgram, 'aTexcoord');
 
+let mousePos = { x: 0, y: 0 };
+
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    mousePos.x = e.clientX - rect.left;
+    mousePos.y = e.clientY - rect.top;
+});
+
+function getNormalizedMouseCoords() {
+    // Convert pixel coordinates to a range of -1 to 1
+    // where (-1, -1) is the bottom left corner and (1, 1) is the top right corner of the canvas
+    return {
+        x: (mousePos.x / canvas.width) * 2 - 1,
+        y: (1 - mousePos.y / canvas.height) * 2 - 1
+    };
+}
+
+
+function drawScene(gl, programInfo, time) {
+
+    const normalizedMousePos = getNormalizedMouseCoords()
+
+    // Create and bind the framebuffer
+    // ---------------------------------------------
+    const framebuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+
+    gl.bindTexture(gl.TEXTURE_2D, blurBufferTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.canvas.width, gl.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, blurBufferTexture, 0);
+
+    // Clear the canvas
+    // ---------------------------------------------
+    gl.useProgram(programInfo.program);
+    updateTimeUniform(gl);
     gl.clearColor(0.0, 0.0, 0.0, 0.0);  // Clear to black
     gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.useProgram(programInfo.program);
 
     // Bind and set up the texture coordinate buffer
     // ---------------------------------------------
@@ -103,22 +119,20 @@ function drawScene(gl, programInfo) {
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.uniform1i(uTextureLocation, 0); // Tell the shader we bound the texture to texture unit 0
 
-
     // Bind and set up the position buffer
     // ---------------------------------------------
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangleVertices), gl.STATIC_DRAW);
     gl.vertexAttribPointer(
-        programInfo.attribLocations.vertexPosition, 
+        positionLocation, 
         2, // number of components per attribute
         gl.FLOAT, 
         false, 
         0, 
         0
     );
-    gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
-
+    gl.enableVertexAttribArray(positionLocation);
 
     // Bind and set up the barycentric buffer
     // ---------------------------------------------
@@ -141,7 +155,7 @@ function drawScene(gl, programInfo) {
     const offsetBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, offsetBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(offsetArray), gl.STATIC_DRAW);
-    const offsetLocation = gl.getAttribLocation(shaderProgram, 'aOffset');
+    const offsetLocation = gl.getAttribLocation(generatorProgram, 'aOffset');
     gl.vertexAttribPointer(offsetLocation, 2, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(offsetLocation);
 
@@ -149,60 +163,82 @@ function drawScene(gl, programInfo) {
     const vertexCount = triangleVertices.length / 2; // Assuming 2 components per vertex position
     gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
 
+// ------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------
+
+    // Apply blur
+    // ---------------------------------------------
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.useProgram(programInfo.blur);
+
+    // Set the uniforms
+    gl.uniform2f(uResolutionLocation, canvas.width, canvas.height);
+
+    // Set the texture as a uniform
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, blurBufferTexture);
+    gl.uniform1i(uBlurTextureLocation, 0);
+
+    const quadVertexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadVertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, quadVertices, gl.STATIC_DRAW);
+    
+        // TEMP
+    const timeLocation = gl.getUniformLocation(programInfo.blur, 'uTime');
+    gl.uniform1f(timeLocation, time / 1000);
+    gl.uniform2f(uMouseLocation, normalizedMousePos.x, normalizedMousePos.y);
+
+    // Set up the position attribute
+
+    const stride = 4 * Float32Array.BYTES_PER_ELEMENT; // 4 components per vertex
+    gl.enableVertexAttribArray(aPositionLocation);
+    gl.vertexAttribPointer(aPositionLocation, 2, gl.FLOAT, false, stride, 0);
+
+    const texcoordOffset = 2 * Float32Array.BYTES_PER_ELEMENT; // Offset by 2 floats
+    gl.enableVertexAttribArray(aTexcoordLocation);
+    gl.vertexAttribPointer(aTexcoordLocation, 2, gl.FLOAT, false, stride, texcoordOffset);
+
+    // Draw the quad
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
 }
 
-const texcoordLocation  = gl.getAttribLocation(shaderProgram, "aTexcoord");
-const uTextureLocation  = gl.getUniformLocation(shaderProgram, "uTexture");
+function updateTimeUniform(gl) {
 
-const yearLocation      = gl.getUniformLocation(shaderProgram, 'u_year');
-const monthLocation     = gl.getUniformLocation(shaderProgram, 'u_month');
-const dayLocation       = gl.getUniformLocation(shaderProgram, 'u_day');
-const hourLocation      = gl.getUniformLocation(shaderProgram, 'u_hour');
-const minuteLocation    = gl.getUniformLocation(shaderProgram, 'u_minute');
-const secondLocation    = gl.getUniformLocation(shaderProgram, 'u_second');
-const milliLocation      = gl.getUniformLocation(shaderProgram, 'u_millisecond');
+    var now         = new Date();
+    var year        = now.getFullYear()
+    var month       = now.getMonth()
+    var day         = now.getDay()
+    var hours       = now.getHours()
+    var minutes     = now.getMinutes()
+    var seconds     = now.getSeconds()
+    var milliseconds= now.getMilliseconds()
 
-let fbA = createFramebuffer(gl).framebuffer;
-let fbB = createFramebuffer(gl).framebuffer;
+    // Set the u_time uniform
+    gl.uniform1f(yearLocation,      year        );
+    gl.uniform1f(monthLocation,     month       );
+    gl.uniform1f(dayLocation,       day         );
+    gl.uniform1f(hourLocation,      hours       );
+    gl.uniform1f(minuteLocation,    minutes     );
+    gl.uniform1f(secondLocation,    seconds     );
+    gl.uniform1f(milliLocation,     milliseconds);
 
-// Create framebuffer and texture
-let fbo = createFramebuffer(gl);
-let sampleTexture = fbo.texture;
+}
 
 function render(time) {
 
-    var now    = new Date();
-
-    var year = now.getFullYear()
-    var month = now.getMonth()
-    var day = now.getDay()
-    var hours = now.getHours()
-    var minutes = now.getMinutes()
-    var seconds = now.getSeconds()
-    var milliseconds = now.getMilliseconds()
-
-    // Set the u_time uniform
-    gl.uniform1f(yearLocation, year);
-    gl.uniform1f(monthLocation, month);
-    gl.uniform1f(dayLocation, day);
-    gl.uniform1f(hourLocation, hours);
-    gl.uniform1f(minuteLocation, minutes);
-    gl.uniform1f(secondLocation, seconds);
-    gl.uniform1f(milliLocation, milliseconds);
-
-
-    drawScene(gl, programInfo);
-
-
+    drawScene(gl, programInfo, time);
 
     // Call render again to animate
     requestAnimationFrame(render);
 }
 
 var image = new Image();
+var texture = gl.createTexture();
+const blurBufferTexture = gl.createTexture();
+
 image.onload = function() {
 
-    texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
 
     // Set the texture parameters
