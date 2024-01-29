@@ -31,7 +31,7 @@ void main() {
     
     // motionVector = (motionVector - uMouse) / 2.0; // Subtract the mouse position and scale down
     vec2 inverse = vec2(1.0, 1.0) - abs(normalizedPosition);
-    motionVector = motionVector * motionVector  / 3.0 * (inverse);
+    motionVector = motionVector * motionVector  /2.0 * (inverse);
     vec4 color = texture2D(uTexture, vTexcoord); // Initial color
 
     for (int i = 1; i < NUM_SAMPLES; i++) {

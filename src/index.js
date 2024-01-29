@@ -12,6 +12,23 @@ import {
     generateMappedTextureCoordinates, 
     generateQuadVertices} from './generators'
 
+// // just to keep our canvas in the center of the doc
+// function adjustSquare() {
+//     const container = document.querySelector('.square-container');
+//     const square = document.querySelector('.square');
+    
+//     const width = container.clientWidth;
+//     const height = container.clientHeight;
+//     const size = Math.min(width, height);
+
+//     square.style.width = `${size}px`;
+//     square.style.height = `${size}px`;
+
+// }
+
+// window.onload = adjustSquare;
+// window.onresize = adjustSquare;
+
 // Get the canvas element and its WebGL context
 const canvas = document.getElementById('glCanvas');
 const gl     = canvas.getContext('webgl');
@@ -254,6 +271,3 @@ image.onload = function() {
     // You might want to call your render function here
 };
 image.src = 'public/assets/flowers.jpg'; // Set the path to your image
-
-
-
