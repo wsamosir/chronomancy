@@ -17,7 +17,7 @@ export function generateTriangles(numQuad, type) {
 
     const nearestPoT = closestLargerSquarePoT(numQuad)
     const triangleVertices = [];
-    const delta = 1 / nearestPoT
+    const delta = 1 / nearestPoT * 5
 
     if (type == "random") {
 

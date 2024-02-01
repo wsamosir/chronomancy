@@ -40,7 +40,7 @@ gl.enable(gl.BLEND);
 gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
 // triangles initialization
-const objectCount               = 512
+const objectCount               = 2048
 const triangleVertices          = generateTriangles(objectCount, "grid");
 const offsetArray               = generateOffsetArray(objectCount)
 const barycentricCoordinates    = generateBarycentricCoordinates(objectCount)
@@ -76,7 +76,7 @@ const milliLocation     = gl.getUniformLocation(generatorProgram, 'u_millisecond
 
 const uBlurTextureLocation = gl.getUniformLocation(blurProgram, "uTexture");
 const uResolutionLocation = gl.getUniformLocation(blurProgram, "uResolution");
-const uMouseLocation = gl.getUniformLocation(blurProgram, "uMouse");
+const uMouseLocation    = gl.getUniformLocation(blurProgram, "uMouse");
 const aPositionLocation = gl.getAttribLocation(blurProgram, 'aPosition');
 const aTexcoordLocation = gl.getAttribLocation(blurProgram, 'aTexcoord');
 

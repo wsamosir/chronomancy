@@ -21,9 +21,10 @@ uniform sampler2D uTexture;  // The texture
 void main() {
 
     float edgeDistance  = min(min(vBarycentric.x, vBarycentric.y), vBarycentric.z);
-    float alpha         = smoothstep(0.0, 0.0, edgeDistance);
+    float alpha         = smoothstep(0.0, 0.25, edgeDistance);
     float u_time        = u_second + u_millisecond / 1000.0;
 
+    u_time = u_time / 1.0;
     vec4 previousColor  = texture2D(u_previousFrame, v_texCoord);
 
     // displacement
@@ -41,8 +42,13 @@ void main() {
 
     gl_FragColor = vec4(red, alpha - green, blue, alpha);
 
+    vec2 coord = v_texCoord.xy; // Or use passed-in texture coordinates
+    // Create a simple striped pattern
+    float pattern = sin(v_texCoord.y*200.0) * cos(v_texCoord.x*200.0);
+    gl_FragColor = vec4(pattern, pattern, pattern, alpha); // Black & white stripes
+    
     // Use uv to sample from a texture or calculate color
     // For demonstration, just setting a color based on displacement
-    gl_FragColor = newColor;
+    // gl_FragColor = newColor;
     
 }

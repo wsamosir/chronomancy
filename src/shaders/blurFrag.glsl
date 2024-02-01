@@ -1,6 +1,6 @@
 // Fragment shader
 precision mediump float;
-const int NUM_SAMPLES = 25; // Number of samples for the blur
+const int NUM_SAMPLES = 250; // Number of samples for the blur
 
 uniform vec2 uResolution; // The resolution (width and height) of the viewport or framebuffer
 uniform sampler2D uTexture;       // The rendered scene texture

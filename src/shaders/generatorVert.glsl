@@ -50,14 +50,11 @@ void main() {
     vBarycentric = aBarycentric; // Pass barycentric coordinates
     v_texCoord = aTexcoord;
 
-    // float secondNow = smoothstep(0.0, 60.0, u_second);
-    // secondNow = 10.0;
-
     vec2 normOffset = (aOffset + 1.0)/2.0;
     vec2 stretchedOffset = normOffset * 16.0;
 
     float millisecondThisHour = u_minute * 60000.0 + u_second * 1000.0 + u_millisecond;
-    float msDivisor = 5000.0;
+    float msDivisor = 2500.0;
 
     float secDivisor = 60.0 * msDivisor;
     float hourVar = millisecondThisHour / secDivisor;
@@ -73,9 +70,6 @@ void main() {
     // TODO: vary the alignment of the waves based on uniform
     sinTime = sinTime + sin(u_time * 1.5) + cos(u_time * 0.7 + 5.0);
     cosTime = cosTime + sin(u_time * 0.5 + 5.0) + cos(u_time * 1.0 + 15.0);
-    
-    // sinTime = 1.0 - sinTime * 0.5;
-    // cosTime = 1.0 - cosTime * 0.5;
 
     float distToCenter = length(aVertexPosition.xy);
 
